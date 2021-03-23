@@ -55,6 +55,19 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 webView?.loadData(data: data, mimeType: mimeType, encoding: encoding, baseUrl: baseUrl)
                 result(true)
                 break
+            case "getCookies":
+                webView!.getCookies(
+                    result:result
+                )
+                break
+            case "setCookie":
+                let cookieName = (arguments!["name"] as? String)!
+                let cookieValue = (arguments!["value"] as? String)!
+                webView!.setCookie(
+                    name:cookieName,value:cookieValue
+                )
+                result(true)
+                break
             case "loadFile":
                 let assetFilePath = arguments!["assetFilePath"] as! String
                 
