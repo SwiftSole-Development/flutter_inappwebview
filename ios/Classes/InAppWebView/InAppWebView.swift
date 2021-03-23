@@ -184,6 +184,69 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         })
     }
     
+        public func setCookie(name: String, value: String) -> Void {
+                if #available(iOS 11.0, *) {
+        let cookie = HTTPCookie(properties: [
+          .domain: "www.supremenewyork.com",
+          .path: "/",
+           .name: name,
+           .value: value,
+           .secure: "TRUE",
+          .expires: NSDate(timeIntervalSinceNow: 31556926)
+          ])! 
+ configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
+
+        }
+                 
+    }
+
+    public func getCookies(result: @escaping FlutterResult) -> Void {
+                if #available(iOS 11.0, *) {
+
+        var url : String = "https://supremenewyork.com/mobile"
+        var cookieList: [[String: Any?]] = []
+        
+        if let urlHost = URL(string: url)?.host {
+            configuration.websiteDataStore.httpCookieStore.getAllCookies { (cookies) in
+                for cookie in cookies {
+                    if cookie.domain.contains(urlHost) {
+                        var sameSite: String? = nil
+                        if #available(iOS 13.0, *) {
+                            if let sameSiteValue = cookie.sameSitePolicy?.rawValue {
+                                sameSite = sameSiteValue.prefix(1).capitalized + sameSiteValue.dropFirst()
+                            }
+                        }
+                        
+                        var expiresDateTimestamp: Int64 = -1
+                        if let expiresDate = cookie.expiresDate?.timeIntervalSince1970 {
+                            // convert to milliseconds
+                            expiresDateTimestamp = Int64(expiresDate * 1000)
+                        }
+                        
+                        cookieList.append([
+                            "name": cookie.name,
+                            "value": cookie.value,
+                            "expiresDate": expiresDateTimestamp != -1 ? expiresDateTimestamp : nil,
+                            "isSessionOnly": cookie.isSessionOnly,
+                            "domain": cookie.domain,
+                            "sameSite": sameSite,
+                            "isSecure": cookie.isSecure,
+                            "isHttpOnly": cookie.isHTTPOnly,
+                            "path": cookie.path,
+                        ])
+                    }
+                }
+                result(cookieList)
+            }
+            return
+        } else {
+            print("Cannot get WebView cookies. No HOST found for URL: \(url)")
+        }
+        
+        result(cookieList)
+                }
+    }
+
     public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         lastTouchPoint = point
         lastTouchPointTimestamp = Int64(Date().timeIntervalSince1970 * 1000)
