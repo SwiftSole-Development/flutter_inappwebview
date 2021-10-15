@@ -22,6 +22,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.ActionMode;
 import android.view.ContextMenu;
+import android.view.DragEvent;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -51,9 +52,9 @@ import androidx.annotation.RequiresApi;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
+import com.pichillilorenzo.flutter_inappwebview.InAppWebViewFlutterPlugin;
 import com.pichillilorenzo.flutter_inappwebview.JavaScriptBridgeInterface;
 import com.pichillilorenzo.flutter_inappwebview.R;
-import com.pichillilorenzo.flutter_inappwebview.Shared;
 import com.pichillilorenzo.flutter_inappwebview.Util;
 import com.pichillilorenzo.flutter_inappwebview.content_blocker.ContentBlocker;
 import com.pichillilorenzo.flutter_inappwebview.content_blocker.ContentBlockerAction;
@@ -103,6 +104,8 @@ final public class InAppWebView extends InputAwareWebView {
   static final String LOG_TAG = "InAppWebView";
 
   @Nullable
+  public InAppWebViewFlutterPlugin plugin;
+  @Nullable
   public InAppBrowserDelegate inAppBrowserDelegate;
   public MethodChannel channel;
   public Object id;
@@ -116,7 +119,7 @@ final public class InAppWebView extends InputAwareWebView {
   public InAppWebViewOptions options;
   public boolean isLoading = false;
   public OkHttpClient httpClient;
-  public float scale = getResources().getDisplayMetrics().density;
+  public float zoomScale = 1.0f;
   int okHttpClientCacheSize = 10 * 1024 * 1024; // 10MB
   public ContentBlockerHandler contentBlockerHandler = new ContentBlockerHandler();
   public Pattern regexToCancelSubFramesLoadingCompiled;
@@ -155,18 +158,20 @@ final public class InAppWebView extends InputAwareWebView {
     super(context, attrs, defaultStyle);
   }
 
-  public InAppWebView(Context context, MethodChannel channel, Object id,
+  public InAppWebView(Context context, InAppWebViewFlutterPlugin plugin,
+                      MethodChannel channel, Object id,
                       @Nullable Integer windowId, InAppWebViewOptions options,
                       @Nullable Map<String, Object> contextMenu, View containerView,
                       List<UserScript> userScripts) {
     super(context, containerView, options.useHybridComposition);
+    this.plugin = plugin;
     this.channel = channel;
     this.id = id;
     this.windowId = windowId;
     this.options = options;
     this.contextMenu = contextMenu;
     this.userContentController.addUserOnlyScripts(userScripts);
-    Shared.activity.registerForContextMenu(this);
+    plugin.activity.registerForContextMenu(this);
   }
 
   @Override
@@ -181,7 +186,7 @@ final public class InAppWebView extends InputAwareWebView {
     javaScriptBridgeInterface = new JavaScriptBridgeInterface(this);
     addJavascriptInterface(javaScriptBridgeInterface, JavaScriptBridgeJS.JAVASCRIPT_BRIDGE_NAME);
 
-    inAppWebViewChromeClient = new InAppWebViewChromeClient(channel, inAppBrowserDelegate);
+    inAppWebViewChromeClient = new InAppWebViewChromeClient(plugin, channel, inAppBrowserDelegate);
     setWebChromeClient(inAppWebViewChromeClient);
 
     inAppWebViewClient = new InAppWebViewClient(channel, inAppBrowserDelegate);
@@ -232,11 +237,11 @@ final public class InAppWebView extends InputAwareWebView {
 
     if (options.userAgent != null && !options.userAgent.isEmpty())
       settings.setUserAgentString(options.userAgent);
-    else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
+    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
       settings.setUserAgentString(WebSettings.getDefaultUserAgent(getContext()));
 
     if (options.applicationNameForUserAgent != null && !options.applicationNameForUserAgent.isEmpty()) {
-      if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
         String userAgent = (options.userAgent != null && !options.userAgent.isEmpty()) ? options.userAgent : WebSettings.getDefaultUserAgent(getContext());
         String userAgentWithApplicationName = userAgent + " " + options.applicationNameForUserAgent;
         settings.setUserAgentString(userAgentWithApplicationName);
@@ -390,7 +395,7 @@ final public class InAppWebView extends InputAwareWebView {
       @Override
       public void run() {
         int newPosition = getScrollY();
-        if(initialPositionScrollStoppedTask - newPosition == 0){
+        if (initialPositionScrollStoppedTask - newPosition == 0) {
           // has stopped
           onScrollStopped();
         } else {
@@ -436,8 +441,7 @@ final public class InAppWebView extends InputAwareWebView {
 
         if (options.disableHorizontalScroll && options.disableVerticalScroll) {
           return (event.getAction() == MotionEvent.ACTION_MOVE);
-        }
-        else if (options.disableHorizontalScroll || options.disableVerticalScroll) {
+        } else if (options.disableHorizontalScroll || options.disableVerticalScroll) {
           switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN: {
               // save the x
@@ -475,22 +479,6 @@ final public class InAppWebView extends InputAwareWebView {
         return false;
       }
     });
-
-    getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-      @Override
-      public void onGlobalLayout() {
-        final boolean canScrollVertical = canScrollVertically();
-        ViewParent parent = getParent();
-        if (parent instanceof PullToRefreshLayout) {
-          PullToRefreshLayout pullToRefreshLayout = (PullToRefreshLayout) parent;
-          if (!canScrollVertical) {
-            pullToRefreshLayout.setEnabled(false);
-          } else {
-            pullToRefreshLayout.setEnabled(pullToRefreshLayout.options.enabled);
-          }
-        }
-      }
-    });
   }
 
   public void setIncognito(boolean enabled) {
@@ -512,8 +500,7 @@ final public class InAppWebView extends InputAwareWebView {
       clearFormData();
       settings.setSavePassword(false);
       settings.setSaveFormData(false);
-    }
-    else {
+    } else {
       settings.setCacheMode(WebSettings.LOAD_DEFAULT);
       settings.setAppCacheEnabled(true);
       settings.setSavePassword(true);
@@ -553,7 +540,7 @@ final public class InAppWebView extends InputAwareWebView {
   }
 
   public void loadFile(String assetFilePath) throws IOException {
-    loadUrl(Util.getUrlAsset(assetFilePath));
+    loadUrl(Util.getUrlAsset(plugin, assetFilePath));
   }
 
   public boolean isLoading() {
@@ -581,6 +568,8 @@ final public class InAppWebView extends InputAwareWebView {
   }
 
   public void takeScreenshot(final @Nullable Map<String, Object> screenshotConfiguration, final MethodChannel.Result result) {
+    final float pixelDensity = Util.getPixelDensity(getContext());
+    
     headlessHandler.post(new Runnable() {
       @Override
       public void run() {
@@ -597,10 +586,10 @@ final public class InAppWebView extends InputAwareWebView {
           if (screenshotConfiguration != null) {
             Map<String, Double> rect = (Map<String, Double>) screenshotConfiguration.get("rect");
             if (rect != null) {
-              int rectX = (int) Math.floor(rect.get("x") * scale + 0.5);
-              int rectY = (int) Math.floor(rect.get("y") * scale + 0.5);
-              int rectWidth = Math.min(resized.getWidth(), (int) Math.floor(rect.get("width") * scale + 0.5));
-              int rectHeight = Math.min(resized.getHeight(), (int) Math.floor(rect.get("height") * scale + 0.5));
+              int rectX = (int) Math.floor(rect.get("x") * pixelDensity + 0.5);
+              int rectY = (int) Math.floor(rect.get("y") * pixelDensity + 0.5);
+              int rectWidth = Math.min(resized.getWidth(), (int) Math.floor(rect.get("width") * pixelDensity + 0.5));
+              int rectHeight = Math.min(resized.getHeight(), (int) Math.floor(rect.get("height") * pixelDensity + 0.5));
               resized = Bitmap.createBitmap(
                       resized,
                       rectX,
@@ -611,7 +600,7 @@ final public class InAppWebView extends InputAwareWebView {
 
             Double snapshotWidth = (Double) screenshotConfiguration.get("snapshotWidth");
             if (snapshotWidth != null) {
-              int dstWidth = (int) Math.floor(snapshotWidth * scale + 0.5);
+              int dstWidth = (int) Math.floor(snapshotWidth * pixelDensity + 0.5);
               float ratioBitmap = (float) resized.getWidth() / (float) resized.getHeight();
               int dstHeight = (int) ((float) dstWidth / ratioBitmap);
               resized = Bitmap.createScaledBitmap(resized, dstWidth, dstHeight, true);
@@ -703,7 +692,7 @@ final public class InAppWebView extends InputAwareWebView {
       settings.setUserAgentString(newOptions.userAgent);
 
     if (newOptionsMap.get("applicationNameForUserAgent") != null && !options.applicationNameForUserAgent.equals(newOptions.applicationNameForUserAgent) && !newOptions.applicationNameForUserAgent.isEmpty()) {
-      if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
         String userAgent = (newOptions.userAgent != null && !newOptions.userAgent.isEmpty()) ? newOptions.userAgent : WebSettings.getDefaultUserAgent(getContext());
         String userAgentWithApplicationName = userAgent + " " + options.applicationNameForUserAgent;
         settings.setUserAgentString(userAgentWithApplicationName);
@@ -797,7 +786,7 @@ final public class InAppWebView extends InputAwareWebView {
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
       if (newOptionsMap.get("disabledActionModeMenuItems") != null && (options.disabledActionModeMenuItems == null ||
-            !options.disabledActionModeMenuItems.equals(newOptions.disabledActionModeMenuItems)))
+              !options.disabledActionModeMenuItems.equals(newOptions.disabledActionModeMenuItems)))
         settings.setDisabledActionModeMenuItems(newOptions.disabledActionModeMenuItems);
 
     if (newOptionsMap.get("fantasyFontFamily") != null && !options.fantasyFontFamily.equals(newOptions.fantasyFontFamily))
@@ -834,7 +823,7 @@ final public class InAppWebView extends InputAwareWebView {
       settings.setMinimumLogicalFontSize(newOptions.minimumLogicalFontSize);
 
     if (newOptionsMap.get("initialScale") != null && !options.initialScale.equals(newOptions.initialScale))
-        setInitialScale(newOptions.initialScale);
+      setInitialScale(newOptions.initialScale);
 
     if (newOptionsMap.get("needInitialFocus") != null && options.needInitialFocus != newOptions.needInitialFocus)
       settings.setNeedInitialFocus(newOptions.needInitialFocus);
@@ -926,7 +915,7 @@ final public class InAppWebView extends InputAwareWebView {
 
     if (newOptionsMap.get("rendererPriorityPolicy") != null &&
             (options.rendererPriorityPolicy.get("rendererRequestedPriority") != newOptions.rendererPriorityPolicy.get("rendererRequestedPriority") ||
-            options.rendererPriorityPolicy.get("waivedWhenNotVisible") != newOptions.rendererPriorityPolicy.get("waivedWhenNotVisible")) &&
+                    options.rendererPriorityPolicy.get("waivedWhenNotVisible") != newOptions.rendererPriorityPolicy.get("waivedWhenNotVisible")) &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       setRendererPriorityPolicy(
               (int) newOptions.rendererPriorityPolicy.get("rendererRequestedPriority"),
@@ -1030,7 +1019,18 @@ final public class InAppWebView extends InputAwareWebView {
       }
       String idAttr = (String) scriptHtmlTagAttributes.get("id");
       if (idAttr != null) {
-        scriptAttributes += " script.id = '" + idAttr.replaceAll("'", "\\\\'") + "'; ";
+        String scriptIdEscaped = idAttr.replaceAll("'", "\\\\'");
+        scriptAttributes += " script.id = '" + scriptIdEscaped + "'; ";
+        scriptAttributes += " script.onload = function() {" +
+        "  if (window." + JavaScriptBridgeJS.JAVASCRIPT_BRIDGE_NAME + " != null) {" +
+        "    window." + JavaScriptBridgeJS.JAVASCRIPT_BRIDGE_NAME + ".callHandler('onInjectedScriptLoaded', '" + scriptIdEscaped + "');" +
+        "  }" +
+        "};";
+        scriptAttributes += " script.onerror = function() {" +
+        "  if (window." + JavaScriptBridgeJS.JAVASCRIPT_BRIDGE_NAME + " != null) {" +
+        "    window." + JavaScriptBridgeJS.JAVASCRIPT_BRIDGE_NAME + ".callHandler('onInjectedScriptError', '" + scriptIdEscaped + "');" +
+        "  }" +
+        "};";
       }
       Boolean asyncAttr = (Boolean) scriptHtmlTagAttributes.get("async");
       if (asyncAttr != null && asyncAttr) {
@@ -1120,7 +1120,7 @@ final public class InAppWebView extends InputAwareWebView {
 
     List<HashMap<String, String>> history = new ArrayList<HashMap<String, String>>();
 
-    for(int i = 0; i < currentSize; i++) {
+    for (int i = 0; i < currentSize; i++) {
       WebHistoryItem historyItem = currentList.getItemAtIndex(i);
       HashMap<String, String> historyItemMap = new HashMap<>();
 
@@ -1140,10 +1140,10 @@ final public class InAppWebView extends InputAwareWebView {
   }
 
   @Override
-  protected void onScrollChanged (int x,
-                                  int y,
-                                  int oldX,
-                                  int oldY) {
+  protected void onScrollChanged(int x,
+                                 int y,
+                                 int oldX,
+                                 int oldY) {
     super.onScrollChanged(x, y, oldX, oldY);
 
     if (floatingContextMenu != null) {
@@ -1194,8 +1194,7 @@ final public class InAppWebView extends InputAwareWebView {
     final String newUserAgent;
     if (enabled) {
       newUserAgent = webSettings.getUserAgentString().replace("Mobile", "eliboM").replace("Android", "diordnA");
-    }
-    else {
+    } else {
       newUserAgent = webSettings.getUserAgentString().replace("eliboM", "Mobile").replace("diordnA", "Android");
     }
 
@@ -1209,7 +1208,7 @@ final public class InAppWebView extends InputAwareWebView {
   @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
   public void printCurrentPage() {
     // Get a PrintManager instance
-    PrintManager printManager = (PrintManager) Shared.activity.getSystemService(Context.PRINT_SERVICE);
+    PrintManager printManager = (PrintManager) plugin.activity.getSystemService(Context.PRINT_SERVICE);
 
     if (printManager != null) {
       String jobName = getTitle() + " Document";
@@ -1225,10 +1224,6 @@ final public class InAppWebView extends InputAwareWebView {
     }
   }
 
-  public Float getUpdatedScale() {
-    return scale;
-  }
-
   @Override
   public void onCreateContextMenu(ContextMenu menu) {
     super.onCreateContextMenu(menu);
@@ -1237,12 +1232,9 @@ final public class InAppWebView extends InputAwareWebView {
 
   private void sendOnCreateContextMenuEvent() {
     HitTestResult hitTestResult = getHitTestResult();
-    Map<String, Object> hitTestResultMap = new HashMap<>();
-    hitTestResultMap.put("type", hitTestResult.getType());
-    hitTestResultMap.put("extra", hitTestResult.getExtra());
-
     Map<String, Object> obj = new HashMap<>();
-    obj.put("hitTestResult", hitTestResultMap);
+    obj.put("type", hitTestResult.getType());
+    obj.put("extra", hitTestResult.getExtra());
     channel.invokeMethod("onCreateContextMenu", obj);
   }
 
@@ -1252,6 +1244,15 @@ final public class InAppWebView extends InputAwareWebView {
   @Override
   public boolean onTouchEvent(MotionEvent ev) {
     lastTouch = new Point((int) ev.getX(), (int) ev.getY());
+
+    ViewParent parent = getParent();
+    if (parent instanceof PullToRefreshLayout) {
+      PullToRefreshLayout pullToRefreshLayout = (PullToRefreshLayout) parent;
+      if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        pullToRefreshLayout.setEnabled(false);
+      }
+    }
+
     return super.onTouchEvent(ev);
   }
 
@@ -1261,6 +1262,17 @@ final public class InAppWebView extends InputAwareWebView {
 
     boolean overScrolledHorizontally = canScrollHorizontally() && clampedX;
     boolean overScrolledVertically = canScrollVertically() && clampedY;
+
+    ViewParent parent = getParent();
+    if (parent instanceof PullToRefreshLayout && overScrolledVertically && scrollY <= 10) {
+      PullToRefreshLayout pullToRefreshLayout = (PullToRefreshLayout) parent;
+      // change over scroll mode to OVER_SCROLL_NEVER in order to disable temporarily the glow effect
+      setOverScrollMode(OVER_SCROLL_NEVER);
+      pullToRefreshLayout.setEnabled(pullToRefreshLayout.options.enabled);
+      // reset over scroll mode
+      setOverScrollMode(options.overScrollMode);
+    }
+
     if (overScrolledHorizontally || overScrolledVertically) {
       Map<String, Object> obj = new HashMap<>();
       obj.put("x", scrollX);
@@ -1283,21 +1295,21 @@ final public class InAppWebView extends InputAwareWebView {
       // workaround to hide the Keyboard when the user click outside
       // on something not focusable such as input or a textarea.
       containerView
-        .getHandler()
-        .postDelayed(
-          new Runnable() {
-            @Override
-            public void run() {
-              InputMethodManager imm =
-                      (InputMethodManager) getContext().getSystemService(INPUT_METHOD_SERVICE);
-              if (imm != null && !imm.isAcceptingText()) {
+              .getHandler()
+              .postDelayed(
+                      new Runnable() {
+                        @Override
+                        public void run() {
+                          InputMethodManager imm =
+                                  (InputMethodManager) getContext().getSystemService(INPUT_METHOD_SERVICE);
+                          if (imm != null && !imm.isAcceptingText()) {
 
-                imm.hideSoftInputFromWindow(
-                        containerView.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
-              }
-            }
-          },
-          128);
+                            imm.hideSoftInputFromWindow(
+                                    containerView.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+                          }
+                        }
+                      },
+                      128);
     }
     return connection;
   }
@@ -1353,9 +1365,9 @@ final public class InAppWebView extends InputAwareWebView {
     if (contextMenu != null) {
       customMenuItems = (List<Map<String, Object>>) contextMenu.get("menuItems");
       Map<String, Object> contextMenuOptionsMap = (Map<String, Object>) contextMenu.get("options");
-     if (contextMenuOptionsMap != null) {
-       contextMenuOptions.parse(contextMenuOptionsMap);
-     }
+      if (contextMenuOptionsMap != null) {
+        contextMenuOptions.parse(contextMenuOptionsMap);
+      }
     }
     customMenuItems = customMenuItems == null ? new ArrayList<Map<String, Object>>() : customMenuItems;
 
@@ -1515,7 +1527,7 @@ final public class InAppWebView extends InputAwareWebView {
         if (floatingContextMenu != null) {
           if (value != null && !value.equalsIgnoreCase("null")) {
             int x = contextMenuPoint.x;
-            int y = (int) ((Float.parseFloat(value) * scale) + (floatingContextMenu.getHeight() / 3.5));
+            int y = (int) ((Float.parseFloat(value) * Util.getPixelDensity(getContext())) + (floatingContextMenu.getHeight() / 3.5));
             contextMenuPoint.y = y;
             onFloatingActionGlobalLayout(x, y);
           } else {
@@ -1604,7 +1616,7 @@ final public class InAppWebView extends InputAwareWebView {
             .replace(PluginScriptsUtil.VAR_RESULT_UUID, resultUuid);
 
     sourceToInject = userContentController.generateCodeForScriptEvaluation(sourceToInject, contentWorld);
-    evaluateJavascript(sourceToInject,  null);
+    evaluateJavascript(sourceToInject, null);
   }
 
   @TargetApi(Build.VERSION_CODES.LOLLIPOP)
@@ -1621,7 +1633,7 @@ final public class InAppWebView extends InputAwareWebView {
       }
     });
   }
-  
+
   public boolean canScrollVertically() {
     return computeVerticalScrollRange() > computeVerticalScrollExtent();
   }
@@ -1673,6 +1685,7 @@ final public class InAppWebView extends InputAwareWebView {
     inAppWebViewClient = null;
     javaScriptBridgeInterface = null;
     inAppWebViewRenderProcessClient = null;
+    plugin = null;
     super.dispose();
   }
 

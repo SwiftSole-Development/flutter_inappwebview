@@ -39,6 +39,8 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     var recognizerForDisablingContextMenuOnLinks: UILongPressGestureRecognizer!
     var lastLongPressTouchPoint: CGPoint?
     
+    var panGestureRecognizer: UIPanGestureRecognizer!
+    
     var lastTouchPoint: CGPoint?
     var lastTouchPointTimestamp = Int64(Date().timeIntervalSince1970 * 1000)
     
@@ -52,6 +54,8 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     static var windowAutoincrementId: Int64 = 0;
     
     var callAsyncJavaScriptBelowIOS14Results: [String:((Any?) -> Void)] = [:]
+    
+    var oldZoomScale = Float(1.0)
     
     init(frame: CGRect, configuration: WKWebViewConfiguration, contextMenu: [String: Any]?, channel: FlutterMethodChannel?, userScripts: [UserScript] = []) {
         super.init(frame: frame, configuration: configuration)
@@ -68,6 +72,9 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         recognizerForDisablingContextMenuOnLinks.delegate = self
         recognizerForDisablingContextMenuOnLinks.addTarget(self, action: #selector(longPressGestureDetected))
         recognizerForDisablingContextMenuOnLinks?.minimumPressDuration = 0.45
+        panGestureRecognizer = UIPanGestureRecognizer()
+        panGestureRecognizer.delegate = self
+        panGestureRecognizer.addTarget(self, action: #selector(endDraggingDetected))
     }
     
     override public var frame: CGRect {
@@ -321,18 +328,25 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         return super.canPerformAction(action, withSender: sender)
     }
     
-    public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        // fix for pull-to-refresh jittering when the touch drag event is held
-        if let pullToRefreshControl = pullToRefreshControl,
-           pullToRefreshControl.shouldCallOnRefresh {
-            pullToRefreshControl.onRefresh()
+    // For some reasons, using the scrollViewDidEndDragging event, in some rare cases, could block
+    // the scroll gesture
+    @objc func endDraggingDetected() {
+        // detect end dragging
+        if panGestureRecognizer.state == .ended {
+            // fix for pull-to-refresh jittering when the touch drag event is held
+            if let pullToRefreshControl = pullToRefreshControl,
+               pullToRefreshControl.shouldCallOnRefresh {
+                pullToRefreshControl.onRefresh()
+            }
         }
     }
 
     public func prepare() {
         scrollView.addGestureRecognizer(self.longPressRecognizer)
         scrollView.addGestureRecognizer(self.recognizerForDisablingContextMenuOnLinks)
+        scrollView.addGestureRecognizer(self.panGestureRecognizer)
         scrollView.addObserver(self, forKeyPath: #keyPath(UIScrollView.contentOffset), options: [.new, .old], context: nil)
+        scrollView.addObserver(self, forKeyPath: #keyPath(UIScrollView.zoomScale), options: [.new, .old], context: nil)
         
         addObserver(self,
                     forKeyPath: #keyPath(WKWebView.estimatedProgress),
@@ -475,19 +489,19 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     }
     
     public func prepareAndAddUserScripts() -> Void {
-        if let applePayAPIEnabled = options?.applePayAPIEnabled, applePayAPIEnabled {
-            return
-        }
-        
         if windowId != nil {
             // The new created window webview has the same WKWebViewConfiguration variable reference.
             // So, we cannot set another WKWebViewConfiguration for it unfortunately!
             // This is a limitation of the official WebKit API.
             return
         }
-        
         configuration.userContentController = WKUserContentController()
         configuration.userContentController.initialize()
+        
+        if let applePayAPIEnabled = options?.applePayAPIEnabled, applePayAPIEnabled {
+            return
+        }
+        
         configuration.userContentController.addPluginScript(PROMISE_POLYFILL_JS_PLUGIN_SCRIPT)
         configuration.userContentController.addPluginScript(JAVASCRIPT_BRIDGE_JS_PLUGIN_SCRIPT)
         configuration.userContentController.addPluginScript(CONSOLE_LOG_JS_PLUGIN_SCRIPT)
@@ -829,12 +843,15 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         load(request)
     }
     
-    public func loadData(data: String, mimeType: String, encoding: String, baseUrl: String) {
-        let url = URL(string: baseUrl)!
+    public func loadData(data: String, mimeType: String, encoding: String, baseUrl: URL, allowingReadAccessTo: URL?) {
+        if #available(iOS 9.0, *), let allowingReadAccessTo = allowingReadAccessTo, baseUrl.scheme == "file", allowingReadAccessTo.scheme == "file" {
+            loadFileURL(baseUrl, allowingReadAccessTo: allowingReadAccessTo)
+        }
+        
         if #available(iOS 9.0, *) {
-            load(data.data(using: .utf8)!, mimeType: mimeType, characterEncodingName: encoding, baseURL: url)
+            load(data.data(using: .utf8)!, mimeType: mimeType, characterEncodingName: encoding, baseURL: baseUrl)
         } else {
-            loadHTMLString(data, baseURL: url)
+            loadHTMLString(data, baseURL: baseUrl)
         }
     }
     
@@ -1382,7 +1399,22 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 scriptAttributes += " script.type = '\(typeAttr.replacingOccurrences(of: "\'", with: "\\'"))'; "
             }
             if let idAttr = scriptHtmlTagAttributes["id"] as? String {
-                scriptAttributes += " script.id = '\(idAttr.replacingOccurrences(of: "\'", with: "\\'"))'; "
+                let scriptIdEscaped = idAttr.replacingOccurrences(of: "\'", with: "\\'")
+                scriptAttributes += " script.id = '\(scriptIdEscaped)'; "
+                scriptAttributes += """
+                script.onload = function() {
+                    if (window.\(JAVASCRIPT_BRIDGE_NAME) != null) {
+                        window.\(JAVASCRIPT_BRIDGE_NAME).callHandler('onInjectedScriptLoaded', '\(scriptIdEscaped)');
+                    }
+                };
+                """
+                scriptAttributes += """
+                script.onerror = function() {
+                    if (window.\(JAVASCRIPT_BRIDGE_NAME) != null) {
+                        window.\(JAVASCRIPT_BRIDGE_NAME).callHandler('onInjectedScriptError', '\(scriptIdEscaped)');
+                    }
+                };
+                """
             }
             if let asyncAttr = scriptHtmlTagAttributes["async"] as? Bool, asyncAttr {
                 scriptAttributes += " script.async = true; "
@@ -2119,6 +2151,14 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         }
     }
     
+    public func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        let newScale = Float(scrollView.zoomScale)
+        if newScale != oldZoomScale {
+            self.onZoomScaleChanged(newScale: newScale, oldScale: oldZoomScale)
+            oldZoomScale = newScale
+        }
+    }
+    
     public func webView(_ webView: WKWebView,
                         createWebViewWith configuration: WKWebViewConfiguration,
                   for navigationAction: WKNavigationAction,
@@ -2367,6 +2407,11 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     public func onScrollChanged(x: Int, y: Int) {
         let arguments: [String: Any] = ["x": x, "y": y]
         channel?.invokeMethod("onScrollChanged", arguments: arguments)
+    }
+    
+    public func onZoomScaleChanged(newScale: Float, oldScale: Float) {
+        let arguments: [String: Any] = ["newScale": newScale, "oldScale": oldScale]
+        channel?.invokeMethod("onZoomScaleChanged", arguments: arguments)
     }
     
     public func onOverScrolled(x: Int, y: Int, clampedX: Bool, clampedY: Bool) {
@@ -2741,7 +2786,7 @@ if(window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)] != null) {
         scrollView.setZoomScale(currentZoomScale * CGFloat(zoomFactor), animated: animated)
     }
     
-    public func getScale() -> Float {
+    public func getZoomScale() -> Float {
         return Float(scrollView.zoomScale)
     }
     
@@ -2932,12 +2977,16 @@ if(window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)] != null) {
             imp_removeBlock(imp)
         }
         scrollView.removeObserver(self, forKeyPath: #keyPath(UIScrollView.contentOffset))
+        scrollView.removeObserver(self, forKeyPath: #keyPath(UIScrollView.zoomScale))
         longPressRecognizer.removeTarget(self, action: #selector(longPressGestureDetected))
         longPressRecognizer.delegate = nil
         scrollView.removeGestureRecognizer(longPressRecognizer)
         recognizerForDisablingContextMenuOnLinks.removeTarget(self, action: #selector(longPressGestureDetected))
         recognizerForDisablingContextMenuOnLinks.delegate = nil
         scrollView.removeGestureRecognizer(recognizerForDisablingContextMenuOnLinks)
+        panGestureRecognizer.removeTarget(self, action: #selector(endDraggingDetected))
+        panGestureRecognizer.delegate = nil
+        scrollView.removeGestureRecognizer(panGestureRecognizer)
         disablePullToRefresh()
         pullToRefreshControl?.dispose()
         pullToRefreshControl = nil

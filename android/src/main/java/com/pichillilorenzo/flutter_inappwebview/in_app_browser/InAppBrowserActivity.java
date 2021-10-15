@@ -23,17 +23,16 @@ import android.widget.SearchView;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.pichillilorenzo.flutter_inappwebview.InAppWebViewMethodHandler;
+import com.pichillilorenzo.flutter_inappwebview.R;
+import com.pichillilorenzo.flutter_inappwebview.Util;
 import com.pichillilorenzo.flutter_inappwebview.in_app_webview.InAppWebView;
 import com.pichillilorenzo.flutter_inappwebview.in_app_webview.InAppWebViewChromeClient;
 import com.pichillilorenzo.flutter_inappwebview.in_app_webview.InAppWebViewOptions;
-import com.pichillilorenzo.flutter_inappwebview.InAppWebViewMethodHandler;
-import com.pichillilorenzo.flutter_inappwebview.R;
-import com.pichillilorenzo.flutter_inappwebview.Shared;
 import com.pichillilorenzo.flutter_inappwebview.pull_to_refresh.PullToRefreshLayout;
 import com.pichillilorenzo.flutter_inappwebview.pull_to_refresh.PullToRefreshOptions;
 import com.pichillilorenzo.flutter_inappwebview.types.URLRequest;
 import com.pichillilorenzo.flutter_inappwebview.types.UserScript;
-import com.pichillilorenzo.flutter_inappwebview.Util;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +59,8 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
   public String fromActivity;
   private List<ActivityResultListener> activityResultListeners = new ArrayList<>();
   public InAppWebViewMethodHandler methodCallDelegate;
-
+  public InAppBrowserManager manager;
+  
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -68,14 +68,18 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
     Bundle b = getIntent().getExtras();
     assert b != null;
     id = b.getString("id");
+
+    String managerId = b.getString("managerId");
+    manager = (InAppBrowserManager) InAppBrowserManager.shared.get(managerId);
+    
     windowId = b.getInt("windowId");
 
-    channel = new MethodChannel(Shared.messenger, "com.pichillilorenzo/flutter_inappbrowser_" + id);
+    channel = new MethodChannel(manager.plugin.messenger, "com.pichillilorenzo/flutter_inappbrowser_" + id);
 
     setContentView(R.layout.activity_web_view);
 
     Map<String, Object> pullToRefreshInitialOptions = (Map<String, Object>) b.getSerializable("pullToRefreshInitialOptions");
-    MethodChannel pullToRefreshLayoutChannel = new MethodChannel(Shared.messenger, "com.pichillilorenzo/flutter_inappwebview_pull_to_refresh_" + id);
+    MethodChannel pullToRefreshLayoutChannel = new MethodChannel(manager.plugin.messenger, "com.pichillilorenzo/flutter_inappwebview_pull_to_refresh_" + id);
     PullToRefreshOptions pullToRefreshOptions = new PullToRefreshOptions();
     pullToRefreshOptions.parse(pullToRefreshInitialOptions);
     pullToRefreshLayout = findViewById(R.id.pullToRefresh);
@@ -87,6 +91,7 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
     webView.windowId = windowId;
     webView.inAppBrowserDelegate = this;
     webView.channel = channel;
+    webView.plugin = manager.plugin;
 
     methodCallDelegate = new InAppWebViewMethodHandler(webView);
     channel.setMethodCallHandler(methodCallDelegate);
@@ -247,12 +252,21 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
   }
 
   public boolean onKeyDown(int keyCode, KeyEvent event) {
-    if ((keyCode == KeyEvent.KEYCODE_BACK)) {
-      if (canGoBack())
-        goBack();
-      else if (options.closeOnCannotGoBack)
+    if (keyCode == KeyEvent.KEYCODE_BACK) {
+      if (options.shouldCloseOnBackButtonPressed) {
         close(null);
-      return true;
+        return true;
+      }
+      if (options.allowGoBackWithBackButton) {
+        if (canGoBack())
+          goBack();
+        else if (options.closeOnCannotGoBack)
+          close(null);
+        return true;
+      }
+      if (!options.shouldCloseOnBackButtonPressed) {
+        return true;
+      }
     }
     return super.onKeyDown(keyCode, event);
   }
@@ -401,43 +415,57 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
 
   @Override
   public void didChangeTitle(String title) {
-    if (options.toolbarTopFixedTitle == null || options.toolbarTopFixedTitle.isEmpty()) {
+    if (actionBar != null && (options.toolbarTopFixedTitle == null || options.toolbarTopFixedTitle.isEmpty())) {
       actionBar.setTitle(title);
     }
   }
 
   @Override
   public void didStartNavigation(String url) {
-    progressBar.setProgress(0);
-    searchView.setQuery(url, false);
+    if (progressBar != null) {
+      progressBar.setProgress(0);
+    }
+    if (searchView != null) {
+      searchView.setQuery(url, false);
+    }
   }
 
   @Override
   public void didUpdateVisitedHistory(String url) {
-    searchView.setQuery(url, false);
+    if (searchView != null) {
+      searchView.setQuery(url, false);
+    }
   }
 
   @Override
   public void didFinishNavigation(String url) {
-    searchView.setQuery(url, false);
-    progressBar.setProgress(0);
+    if (searchView != null) {
+      searchView.setQuery(url, false);
+    }
+    if (progressBar != null) {
+      progressBar.setProgress(0);
+    }
   }
 
   @Override
   public void didFailNavigation(String url, int errorCode, String description) {
-    progressBar.setProgress(0);
+    if (progressBar != null) {
+      progressBar.setProgress(0);
+    }
   }
 
   @Override
   public void didChangeProgress(int progress) {
-    progressBar.setVisibility(View.VISIBLE);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-      progressBar.setProgress(progress, true);
-    } else {
-      progressBar.setProgress(progress);
-    }
-    if (progress == 100) {
-      progressBar.setVisibility(View.GONE);
+    if (progressBar != null) {
+      progressBar.setVisibility(View.VISIBLE);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        progressBar.setProgress(progress, true);
+      } else {
+        progressBar.setProgress(progress);
+      }
+      if (progress == 100) {
+        progressBar.setVisibility(View.GONE);
+      }
     }
   }
 
@@ -465,8 +493,8 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
       methodCallDelegate = null;
     }
     if (webView != null) {
-      if (Shared.activityPluginBinding != null) {
-        Shared.activityPluginBinding.removeActivityResultListener(webView.inAppWebViewChromeClient);
+      if (manager.plugin.activityPluginBinding != null) {
+        manager.plugin.activityPluginBinding.removeActivityResultListener(webView.inAppWebViewChromeClient);
       }
       ViewGroup vg = (ViewGroup) (webView.getParent());
       if (vg != null) {
@@ -478,6 +506,7 @@ public class InAppBrowserActivity extends AppCompatActivity implements InAppBrow
           webView.dispose();
           webView.destroy();
           webView = null;
+          manager = null;
         }
       });
       webView.loadUrl("about:blank");

@@ -55,6 +55,7 @@ class InAppWebViewController {
       HashMap<String, JavaScriptHandlerCallback>();
   List<UserScript> _userScripts = [];
   Set<String> _webMessageListenerObjNames = Set();
+  Map<String, ScriptHtmlTagAttributes> _injectedScriptsFromURL = {};
 
   // ignore: unused_field
   dynamic _id;
@@ -101,13 +102,8 @@ class InAppWebViewController {
 
   Future<dynamic> handleMethod(MethodCall call) async {
     switch (call.method) {
-      case "onHeadlessWebViewCreated":
-        if (_webview != null &&
-            _webview is HeadlessInAppWebView &&
-            _webview!.onWebViewCreated != null)
-          _webview!.onWebViewCreated!(this);
-        break;
       case "onLoadStart":
+        _injectedScriptsFromURL.clear();
         if ((_webview != null && _webview!.onLoadStart != null) ||
             _inAppBrowser != null) {
           String? url = call.arguments["url"];
@@ -361,15 +357,25 @@ class InAppWebViewController {
                 ?.toMap();
         }
         break;
-      case "onScaleChanged":
-        if ((_webview != null && _webview!.androidOnScaleChanged != null) ||
+      case "onZoomScaleChanged":
+        if ((_webview != null &&
+                // ignore: deprecated_member_use_from_same_package
+                (_webview!.androidOnScaleChanged != null ||
+                    _webview!.onZoomScaleChanged != null)) ||
             _inAppBrowser != null) {
           double oldScale = call.arguments["oldScale"];
           double newScale = call.arguments["newScale"];
-          if (_webview != null && _webview!.androidOnScaleChanged != null)
-            _webview!.androidOnScaleChanged!(this, oldScale, newScale);
-          else
+          if (_webview != null) {
+            if (_webview!.onZoomScaleChanged != null)
+              _webview!.onZoomScaleChanged!(this, oldScale, newScale);
+            else {
+              // ignore: deprecated_member_use_from_same_package
+              _webview!.androidOnScaleChanged!(this, oldScale, newScale);
+            }
+          } else {
+            // ignore: deprecated_member_use_from_same_package
             _inAppBrowser!.androidOnScaleChanged(oldScale, newScale);
+          }
         }
         break;
       case "onReceivedIcon":
@@ -861,6 +867,22 @@ class InAppWebViewController {
               _webview!.onWindowBlur!(this);
             else if (_inAppBrowser != null) _inAppBrowser!.onWindowBlur();
             return null;
+          case "onInjectedScriptLoaded":
+            String id = args[0];
+            var onLoadCallback = _injectedScriptsFromURL[id]?.onLoad;
+            if ((_webview != null || _inAppBrowser != null) &&
+                onLoadCallback != null) {
+              onLoadCallback();
+            }
+            return null;
+          case "onInjectedScriptError":
+            String id = args[0];
+            var onErrorCallback = _injectedScriptsFromURL[id]?.onError;
+            if ((_webview != null || _inAppBrowser != null) &&
+                onErrorCallback != null) {
+              onErrorCallback();
+            }
+            return null;
         }
 
         if (javaScriptHandlersMap.containsKey(handlerName)) {
@@ -1148,7 +1170,7 @@ class InAppWebViewController {
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent('urlRequest', () => urlRequest.toMap());
     args.putIfAbsent(
-        'allowingReadAccessTo', () => iosAllowingReadAccessTo.toString());
+        'allowingReadAccessTo', () => iosAllowingReadAccessTo?.toString());
     await _channel.invokeMethod('loadUrl', args);
   }
 
@@ -1171,11 +1193,14 @@ class InAppWebViewController {
 
   ///Loads the given [data] into this WebView, using [baseUrl] as the base URL for the content.
   ///
-  ///The [mimeType] parameter specifies the format of the data. The default value is `"text/html"`.
-  ///
-  ///The [encoding] parameter specifies the encoding of the data. The default value is `"utf8"`.
-  ///
-  ///The [androidHistoryUrl] parameter is the URL to use as the history entry. The default value is `about:blank`. If non-null, this must be a valid URL. This parameter is used only on Android.
+  ///- [mimeType] parameter specifies the format of the data. The default value is `"text/html"`.
+  ///- [encoding] parameter specifies the encoding of the data. The default value is `"utf8"`.
+  ///- [androidHistoryUrl] parameter is the URL to use as the history entry. The default value is `about:blank`. If non-null, this must be a valid URL. This parameter is used only on Android.
+  ///- [iosAllowingReadAccessTo], used in combination with [baseUrl] (using the `file://` scheme),
+  ///is an iOS-specific argument that represents the URL from which to read the web content.
+  ///This [baseUrl] must be a file-based URL (using the `file://` scheme).
+  ///Specify the same value as the [baseUrl] parameter to prevent WebView from reading any other content.
+  ///Specify a directory to give WebView permission to read additional files in the specified directory.
   ///
   ///**Official Android API**: https://developer.android.com/reference/android/webkit/WebView#loadDataWithBaseURL(java.lang.String,%20java.lang.String,%20java.lang.String,%20java.lang.String,%20java.lang.String)
   ///
@@ -1187,7 +1212,11 @@ class InAppWebViewController {
       String mimeType = "text/html",
       String encoding = "utf8",
       Uri? baseUrl,
-      Uri? androidHistoryUrl}) async {
+      Uri? androidHistoryUrl,
+      Uri? iosAllowingReadAccessTo}) async {
+    assert(iosAllowingReadAccessTo == null ||
+        iosAllowingReadAccessTo.isScheme("file"));
+
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent('data', () => data);
     args.putIfAbsent('mimeType', () => mimeType);
@@ -1195,6 +1224,8 @@ class InAppWebViewController {
     args.putIfAbsent('baseUrl', () => baseUrl?.toString() ?? "about:blank");
     args.putIfAbsent(
         'historyUrl', () => androidHistoryUrl?.toString() ?? "about:blank");
+    args.putIfAbsent(
+        'allowingReadAccessTo', () => iosAllowingReadAccessTo?.toString());
     await _channel.invokeMethod('loadData', args);
   }
 
@@ -1369,6 +1400,10 @@ class InAppWebViewController {
       {required Uri urlFile,
       ScriptHtmlTagAttributes? scriptHtmlTagAttributes}) async {
     assert(urlFile.toString().isNotEmpty);
+    var id = scriptHtmlTagAttributes?.id;
+    if (scriptHtmlTagAttributes != null && id != null) {
+      _injectedScriptsFromURL[id] = scriptHtmlTagAttributes;
+    }
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent('urlFile', () => urlFile.toString());
     args.putIfAbsent(
@@ -1382,10 +1417,10 @@ class InAppWebViewController {
   ///because, in these events, the [WebView] is not ready to handle it yet.
   ///Instead, you should call this method, for example, inside the [WebView.onLoadStop] event or in any other events
   ///where you know the page is ready "enough".
-  Future<void> injectJavascriptFileFromAsset(
+  Future<dynamic> injectJavascriptFileFromAsset(
       {required String assetFilePath}) async {
     String source = await rootBundle.loadString(assetFilePath);
-    await evaluateJavascript(source: source);
+    return await evaluateJavascript(source: source);
   }
 
   ///Injects CSS into the WebView.
@@ -1713,16 +1748,18 @@ class InAppWebViewController {
     return await _channel.invokeMethod('zoomBy', args);
   }
 
-  ///Gets the current scale of this WebView.
-  ///
-  ///**Official Android API**:
-  ///- https://developer.android.com/reference/android/util/DisplayMetrics#density
-  ///- https://developer.android.com/reference/android/webkit/WebViewClient#onScaleChanged(android.webkit.WebView,%20float,%20float)
+  ///Gets the current zoom scale of the WebView.
   ///
   ///**Official iOS API**: https://developer.apple.com/documentation/uikit/uiscrollview/1619419-zoomscale
-  Future<double?> getScale() async {
+  Future<double?> getZoomScale() async {
     Map<String, dynamic> args = <String, dynamic>{};
-    return await _channel.invokeMethod('getScale', args);
+    return await _channel.invokeMethod('getZoomScale', args);
+  }
+
+  ///Use [getZoomScale] instead.
+  @Deprecated('Use `getZoomScale` instead')
+  Future<double?> getScale() async {
+    return await getZoomScale();
   }
 
   ///Gets the selected text.
@@ -1753,8 +1790,8 @@ class InAppWebViewController {
 
     InAppWebViewHitTestResultType? type =
         InAppWebViewHitTestResultType.fromValue(
-            hitTestResultMap["type"].toInt());
-    String extra = hitTestResultMap["extra"];
+            hitTestResultMap["type"]?.toInt());
+    String? extra = hitTestResultMap["extra"];
     return InAppWebViewHitTestResult(type: type, extra: extra);
   }
 
@@ -2039,13 +2076,13 @@ class InAppWebViewController {
   ///[functionBody] is the JavaScript string to use as the function body.
   ///This method treats the string as an anonymous JavaScript function body and calls it with the named arguments in the arguments parameter.
   ///
-  ///[arguments] is a dictionary of the arguments to pass to the function call.
-  ///Each key in the dictionary corresponds to the name of an argument in the [functionBody] string,
+  ///[arguments] is a `Map` of the arguments to pass to the function call.
+  ///Each key in the `Map` corresponds to the name of an argument in the [functionBody] string,
   ///and the value of that key is the value to use during the evaluation of the code.
   ///Supported value types can be found in the official Flutter docs:
   ///[Platform channel data types support and codecs](https://flutter.dev/docs/development/platform-integration/platform-channels#codec),
   ///except for [Uint8List], [Int32List], [Int64List], and [Float64List] that should be converted into a [List].
-  ///All items in an array or dictionary must also be one of the supported types.
+  ///All items in a `List` or `Map` must also be one of the supported types.
   ///
   ///[contentWorld], on iOS, it represents the namespace in which to evaluate the JavaScript [source] code.
   ///Instead, on Android, it will run the [source] code into an iframe.
@@ -2053,6 +2090,11 @@ class InAppWebViewController {
   ///Those changes remain visible to all scripts, regardless of which content world you specify.
   ///For more information about content worlds, see [ContentWorld].
   ///Available on iOS 14.0+.
+  ///
+  ///**NOTE**: This method shouldn't be called in the [WebView.onWebViewCreated] or [WebView.onLoadStart] events,
+  ///because, in these events, the [WebView] is not ready to handle it yet.
+  ///Instead, you should call this method, for example, inside the [WebView.onLoadStop] event or in any other events
+  ///where you know the page is ready "enough".
   ///
   ///**NOTE for iOS**: available only on iOS 10.3+.
   ///

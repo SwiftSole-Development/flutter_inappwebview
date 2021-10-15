@@ -137,11 +137,12 @@ abstract class WebView {
   ///If the host application chooses not to honor the request, it should return `false` from this method.
   ///The default implementation of this method does nothing and hence returns `false`.
   ///
-  ///[createWindowAction] represents the request.
+  ///- [createWindowAction] represents the request.
   ///
   ///**NOTE**: to allow JavaScript to open windows, you need to set [InAppWebViewOptions.javaScriptCanOpenWindowsAutomatically] option to `true`.
   ///
   ///**NOTE**: on Android you need to set [AndroidInAppWebViewOptions.supportMultipleWindows] option to `true`.
+  ///Also, if the request has been created using JavaScript (`window.open()`), then there are some limitation: check the [NavigationAction] class.
   ///
   ///**NOTE**: on iOS, setting these initial options: [InAppWebViewOptions.supportZoom], [InAppWebViewOptions.useOnLoadResource], [InAppWebViewOptions.useShouldInterceptAjaxRequest],
   ///[InAppWebViewOptions.useShouldInterceptFetchRequest], [InAppWebViewOptions.applicationNameForUserAgent], [InAppWebViewOptions.javaScriptCanOpenWindowsAutomatically],
@@ -401,6 +402,21 @@ abstract class WebView {
   final void Function(InAppWebViewController controller, int x, int y,
       bool clampedX, bool clampedY)? onOverScrolled;
 
+  ///Event fired when the zoom scale of the WebView has changed.
+  ///
+  ///[oldScale] The old zoom scale factor.
+  ///
+  ///[newScale] The new zoom scale factor.
+  ///
+  ///**NOTE**: available only on Android.
+  ///
+  ///**Official Android API**: https://developer.android.com/reference/android/webkit/WebViewClient#onScaleChanged(android.webkit.WebView,%20float,%20float)
+  ///
+  ///**Official iOS API**: https://developer.apple.com/documentation/uikit/uiscrollviewdelegate/1619409-scrollviewdidzoom
+  final void Function(
+          InAppWebViewController controller, double oldScale, double newScale)?
+      onZoomScaleChanged;
+
   ///Event fired when the webview notifies that a loading URL has been flagged by Safe Browsing.
   ///The default behavior is to show an interstitial to the user, with the reporting checkbox visible.
   ///
@@ -531,15 +547,8 @@ abstract class WebView {
   final Future<FormResubmissionAction?> Function(
       InAppWebViewController controller, Uri? url)? androidOnFormResubmission;
 
-  ///Event fired when the scale applied to the WebView has changed.
-  ///
-  ///[oldScale] The old scale factor.
-  ///
-  ///[newScale] The new scale factor.
-  ///
-  ///**NOTE**: available only on Android.
-  ///
-  ///**Official Android API**: https://developer.android.com/reference/android/webkit/WebViewClient#onScaleChanged(android.webkit.WebView,%20float,%20float)
+  ///Use [onZoomScaleChanged] instead.
+  @Deprecated('Use `onZoomScaleChanged` instead')
   final void Function(
           InAppWebViewController controller, double oldScale, double newScale)?
       androidOnScaleChanged;
@@ -702,6 +711,7 @@ abstract class WebView {
       this.onWindowFocus,
       this.onWindowBlur,
       this.onOverScrolled,
+      this.onZoomScaleChanged,
       this.androidOnSafeBrowsingHit,
       this.androidOnPermissionRequest,
       this.androidOnGeolocationPermissionsShowPrompt,
@@ -711,7 +721,8 @@ abstract class WebView {
       this.androidOnRenderProcessResponsive,
       this.androidOnRenderProcessUnresponsive,
       this.androidOnFormResubmission,
-      this.androidOnScaleChanged,
+      @Deprecated('Use `onZoomScaleChanged` instead')
+          this.androidOnScaleChanged,
       this.androidOnReceivedIcon,
       this.androidOnReceivedTouchIconUrl,
       this.androidOnJsBeforeUnload,
