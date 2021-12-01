@@ -51,8 +51,13 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 let data = arguments!["data"] as! String
                 let mimeType = arguments!["mimeType"] as! String
                 let encoding = arguments!["encoding"] as! String
-                let baseUrl = arguments!["baseUrl"] as! String
-                webView?.loadData(data: data, mimeType: mimeType, encoding: encoding, baseUrl: baseUrl)
+                let baseUrl = URL(string: arguments!["baseUrl"] as! String)!
+                let allowingReadAccessTo = arguments!["allowingReadAccessTo"] as? String
+                var allowingReadAccessToURL: URL? = nil
+                if let allowingReadAccessTo = allowingReadAccessTo {
+                    allowingReadAccessToURL = URL(string: allowingReadAccessTo)
+                }
+                webView?.loadData(data: data, mimeType: mimeType, encoding: encoding, baseUrl: baseUrl, allowingReadAccessTo: allowingReadAccessToURL)
                 result(true)
                 break
             case "getCookies":
@@ -308,8 +313,8 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 webView?.reloadFromOrigin()
                 result(true)
                 break
-            case "getScale":
-                result(webView?.getScale())
+            case "getZoomScale":
+                result(webView?.getZoomScale())
                 break
             case "hasOnlySecureContent":
                 result(webView?.hasOnlySecureContent ?? false)

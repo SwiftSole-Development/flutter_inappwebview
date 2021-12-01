@@ -4,6 +4,7 @@ import '../../in_app_browser/in_app_browser_options.dart';
 
 import '../in_app_webview_options.dart';
 import '../webview.dart';
+import '../in_app_webview_controller.dart';
 
 class IosOptions {}
 
@@ -181,6 +182,9 @@ class IOSInAppWebViewOptions
   ///- [InAppWebViewController.getHitTestResult]
   ///- [InAppWebViewController.requestFocusNodeHref]
   ///- [InAppWebViewController.requestImageRef]
+  ///- [InAppWebViewController.postWebMessage]
+  ///- [InAppWebViewController.createWebMessageChannel]
+  ///- [InAppWebViewController.addWebMessageListener]
   ///
   ///Options affected:
   ///- [WebView.initialUserScripts]
@@ -207,9 +211,10 @@ class IOSInAppWebViewOptions
   ///**NOTE**: available on iOS 13.0+.
   bool applePayAPIEnabled;
 
-  ///Used in combination with [WebView.initialUrlRequest] (using the `file://` scheme), it represents the URL from which to read the web content.
+  ///Used in combination with [WebView.initialUrlRequest] or [WebView.initialData] (using the `file://` scheme), it represents the URL from which to read the web content.
   ///This URL must be a file-based URL (using the `file://` scheme).
-  ///Specify the same value as the [WebView.initialUrlRequest] parameter to prevent WebView from reading any other content.
+  ///Specify the same value as the [URLRequest.url] if you are using it with the [WebView.initialUrlRequest] parameter or
+  ///the [InAppWebViewInitialData.baseUrl] if you are using it with the [WebView.initialData] parameter to prevent WebView from reading any other content.
   ///Specify a directory to give WebView permission to read additional files in the specified directory.
   Uri? allowingReadAccessTo;
 

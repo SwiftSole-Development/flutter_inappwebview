@@ -77,6 +77,7 @@ class InAppWebView extends StatefulWidget implements WebView {
     this.onWindowFocus,
     this.onWindowBlur,
     this.onOverScrolled,
+    this.onZoomScaleChanged,
     this.androidOnSafeBrowsingHit,
     this.androidOnPermissionRequest,
     this.androidOnGeolocationPermissionsShowPrompt,
@@ -86,7 +87,7 @@ class InAppWebView extends StatefulWidget implements WebView {
     this.androidOnRenderProcessResponsive,
     this.androidOnRenderProcessUnresponsive,
     this.androidOnFormResubmission,
-    this.androidOnScaleChanged,
+    @Deprecated('Use `onZoomScaleChanged` instead') this.androidOnScaleChanged,
     this.androidOnReceivedIcon,
     this.androidOnReceivedTouchIconUrl,
     this.androidOnJsBeforeUnload,
@@ -314,6 +315,11 @@ class InAppWebView extends StatefulWidget implements WebView {
       bool clampedX, bool clampedY)? onOverScrolled;
 
   @override
+  final void Function(
+          InAppWebViewController controller, double oldScale, double newScale)?
+      onZoomScaleChanged;
+
+  @override
   final Future<WebResourceResponse?> Function(
           InAppWebViewController controller, WebResourceRequest request)?
       androidShouldInterceptRequest;
@@ -337,6 +343,8 @@ class InAppWebView extends StatefulWidget implements WebView {
   final Future<FormResubmissionAction?> Function(
       InAppWebViewController controller, Uri? url)? androidOnFormResubmission;
 
+  ///Use [onZoomScaleChanged] instead.
+  @Deprecated('Use `onZoomScaleChanged` instead')
   @override
   final void Function(
           InAppWebViewController controller, double oldScale, double newScale)?

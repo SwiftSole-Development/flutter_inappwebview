@@ -15,11 +15,13 @@ import android.webkit.RenderProcessGoneDetail;
 import android.webkit.SafeBrowsingResponse;
 import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
@@ -255,6 +257,35 @@ public class InAppWebViewClient extends WebViewClient {
     obj.put("androidIsReload", isReload);
     channel.invokeMethod("onUpdateVisitedHistory", obj);
   }
+  
+  @RequiresApi(api = Build.VERSION_CODES.M)
+  @Override
+  public void onReceivedError(WebView view, @NonNull WebResourceRequest request, @NonNull WebResourceError error) {
+//    final InAppWebView webView = (InAppWebView) view;
+//
+//    if (request.isForMainFrame()) {
+//      if (webView.options.disableDefaultErrorPage) {
+//        webView.stopLoading();
+//        webView.loadUrl("about:blank");
+//      }
+//
+//      webView.isLoading = false;
+//      previousAuthRequestFailureCount = 0;
+//      credentialsProposed = null;
+//
+//      if (inAppBrowserDelegate != null) {
+//        inAppBrowserDelegate.didFailNavigation(request.getUrl().toString(), error.getErrorCode(), error.getDescription().toString());
+//      }
+//    }
+//
+//    Map<String, Object> obj = new HashMap<>();
+//    obj.put("url", request.getUrl().toString());
+//    obj.put("code", error.getErrorCode());
+//    obj.put("message", error.getDescription());
+//    channel.invokeMethod("onLoadError", obj);
+
+    super.onReceivedError(view, request, error);
+  }
 
   @Override
   public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
@@ -443,6 +474,8 @@ public class InAppWebViewClient extends WebViewClient {
   @Override
   public void onReceivedClientCertRequest(final WebView view, final ClientCertRequest request) {
 
+    InAppWebView webView = (InAppWebView) view;
+
     URI uri;
     try {
       uri = new URI(view.getUrl());
@@ -474,7 +507,7 @@ public class InAppWebViewClient extends WebViewClient {
                   String certificatePath = (String) responseMap.get("certificatePath");
                   String certificatePassword = (String) responseMap.get("certificatePassword");
                   String androidKeyStoreType = (String) responseMap.get("androidKeyStoreType");
-                  Util.PrivateKeyAndCertificates privateKeyAndCertificates = Util.loadPrivateKeyAndCertificate(certificatePath, certificatePassword, androidKeyStoreType);
+                  Util.PrivateKeyAndCertificates privateKeyAndCertificates = Util.loadPrivateKeyAndCertificate(webView.plugin, certificatePath, certificatePassword, androidKeyStoreType);
                   request.proceed(privateKeyAndCertificates.privateKey, privateKeyAndCertificates.certificates);
                 }
                 return;
@@ -508,12 +541,12 @@ public class InAppWebViewClient extends WebViewClient {
   public void onScaleChanged(WebView view, float oldScale, float newScale) {
     super.onScaleChanged(view, oldScale, newScale);
     final InAppWebView webView = (InAppWebView) view;
-    webView.scale = newScale;
+    webView.zoomScale = newScale / Util.getPixelDensity(webView.getContext());
 
     Map<String, Object> obj = new HashMap<>();
     obj.put("oldScale", oldScale);
     obj.put("newScale", newScale);
-    channel.invokeMethod("onScaleChanged", obj);
+    channel.invokeMethod("onZoomScaleChanged", obj);
   }
 
   @RequiresApi(api = Build.VERSION_CODES.O_MR1)
