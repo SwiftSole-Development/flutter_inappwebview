@@ -70,8 +70,11 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
             case "setCookie":
                 let cookieName = (arguments!["name"] as? String)!
                 let cookieValue = (arguments!["value"] as? String)!
+                let cookieDomain = (arguments!["domain"] as? String)!
+                let cookiePath = (arguments!["path"] as? String)!
+
                 webView!.setCookie(
-                    name:cookieName,value:cookieValue
+                    name:cookieName,value:cookieValue, domain:cookieDomain, path: cookiePath
                 )
                 result(true)
                 break

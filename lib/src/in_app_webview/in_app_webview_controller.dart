@@ -938,8 +938,14 @@ class InAppWebViewController {
     return await _channel.invokeMethod('getCookies', args);
   }
 
-  Future<bool> setCookie(String name, String value) async {
-    Map<String, dynamic> args = {"name": name, "value": value};
+  Future<bool> setCookie(
+      String name, String value, String domain, String path) async {
+    Map<String, dynamic> args = {
+      "name": name,
+      "value": value,
+      "domain": domain,
+      "path": path
+    };
     return await _channel.invokeMethod('setCookie', args);
   }
 

@@ -191,11 +191,11 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         })
     }
     
-        public func setCookie(name: String, value: String) -> Void {
+        public func setCookie(name: String, value: String, domain: String, path: String) -> Void {
                 if #available(iOS 11.0, *) {
         let cookie = HTTPCookie(properties: [
-          .domain: "www.supremenewyork.com",
-          .path: "/",
+          .domain: domain,
+          .path: path,
            .name: name,
            .value: value,
            .secure: "TRUE",
