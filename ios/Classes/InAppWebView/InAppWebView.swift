@@ -200,10 +200,8 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                  
     }
 
-    public func getCookies(result: @escaping FlutterResult) -> Void {
+    public func getCookies(url: String, result: @escaping FlutterResult) -> Void {
                 if #available(iOS 11.0, *) {
-
-        var url : String = "https://supremenewyork.com/mobile"
         var cookieList: [[String: Any?]] = []
         
         if let urlHost = URL(string: url)?.host {

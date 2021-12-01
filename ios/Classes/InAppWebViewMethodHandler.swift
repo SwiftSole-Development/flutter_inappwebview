@@ -56,7 +56,9 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 result(true)
                 break
             case "getCookies":
+                let url = arguments!["url"] as! String
                 webView!.getCookies(
+                    url: url,
                     result:result
                 )
                 break

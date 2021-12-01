@@ -911,16 +911,16 @@ class InAppWebViewController {
     return await _channel.invokeMethod('getProgress', args);
   }
 
-    Future<dynamic> getCookies() async {
-    Map<String, dynamic> args = <String, dynamic>{};
+  Future<dynamic> getCookies(String url) async {
+    Map<String, dynamic> args = <String, dynamic>{"url": url};
     return await _channel.invokeMethod('getCookies', args);
   }
 
   Future<bool> setCookie(String name, String value) async {
-    Map<String, dynamic> args = {"name":name, "value":value};
+    Map<String, dynamic> args = {"name": name, "value": value};
     return await _channel.invokeMethod('setCookie', args);
   }
-  
+
   ///Gets the content html of the page. It first tries to get the content through javascript.
   ///If this doesn't work, it tries to get the content reading the file:
   ///- checking if it is an asset (`file:///`) or
