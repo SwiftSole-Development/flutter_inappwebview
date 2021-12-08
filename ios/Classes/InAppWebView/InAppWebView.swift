@@ -968,6 +968,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                                             pluginScript: INTERCEPT_AJAX_REQUEST_JS_PLUGIN_SCRIPT)
             } else {
                 newOptions.useShouldInterceptAjaxRequest = false
+                configuration.userContentController.removePluginScript(INTERCEPT_AJAX_REQUEST_JS_PLUGIN_SCRIPT)
             }
         }
         
