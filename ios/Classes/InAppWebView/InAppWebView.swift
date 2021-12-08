@@ -967,7 +967,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                                             enable: newOptions.useShouldInterceptAjaxRequest,
                                             pluginScript: INTERCEPT_AJAX_REQUEST_JS_PLUGIN_SCRIPT)
             } else {
-                newOptions.useShouldInterceptFetchRequest = false
+                newOptions.useShouldInterceptAjaxRequest = false
             }
         }
         
