@@ -1158,6 +1158,10 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         scrollView.isScrollEnabled = !(newOptions.disableVerticalScroll && newOptions.disableHorizontalScroll)
         
         self.options = newOptions
+        if(!newOptions.useShouldInterceptAjaxRequest){
+            configuration.userContentController.removeAllUserScripts()
+            prepareAndAddUserScripts()
+        }
     }
     
     func getOptions() -> [String: Any?]? {
