@@ -209,7 +209,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
 
     public func deleteAllCookies(domain: String, result: @escaping FlutterResult) -> Void {
         if #available(iOS 11.0, *) {
-            configuration.websiteDataStore.httpCookieStore!.getAllCookies { (cookies) in
+            configuration.websiteDataStore.httpCookieStore.getAllCookies { (cookies) in
                 for cookie in cookies {
                     var originURL = ""
                     if cookie.properties![.originURL] is String {
@@ -883,7 +883,6 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     }
     
     func setOptions(newOptions: InAppWebViewOptions, newOptionsMap: [String: Any], result: @escaping FlutterResult) {
-        
         // MUST be the first! In this way, all the options that uses evaluateJavaScript can be applied/blocked!
         if #available(iOS 13.0, *) {
             if newOptionsMap["applePayAPIEnabled"] != nil && options?.applePayAPIEnabled != newOptions.applePayAPIEnabled {
