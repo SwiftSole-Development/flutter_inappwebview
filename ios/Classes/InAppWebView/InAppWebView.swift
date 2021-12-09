@@ -882,7 +882,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         loadUrl(urlRequest: urlRequest, allowingReadAccessTo: nil)
     }
     
-    func setOptions(newOptions: InAppWebViewOptions, newOptionsMap: [String: Any]) {
+    func setOptions(newOptions: InAppWebViewOptions, newOptionsMap: [String: Any], result: @escaping FlutterResult) {
         
         // MUST be the first! In this way, all the options that uses evaluateJavaScript can be applied/blocked!
         if #available(iOS 13.0, *) {
@@ -1181,10 +1181,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         scrollView.isScrollEnabled = !(newOptions.disableVerticalScroll && newOptions.disableHorizontalScroll)
         
         self.options = newOptions
-        if(!newOptions.useShouldInterceptAjaxRequest){
-            configuration.userContentController.removeAllUserScripts()
-            prepareAndAddUserScripts()
-        }
+        result(true)
     }
     
     func getOptions() -> [String: Any?]? {
