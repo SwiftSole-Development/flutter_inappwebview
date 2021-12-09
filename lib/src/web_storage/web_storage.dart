@@ -64,9 +64,8 @@ class Storage {
 
   ///When passed a [key] name and [value], will add that key to the storage, or update that key's value if it already exists.
   Future<void> setItem({required String key, required dynamic value}) async {
-    var encodedValue = json.encode(value);
     await _controller.evaluateJavascript(source: """
-    window.$webStorageType.setItem("$key", ${value is String ? encodedValue : "JSON.stringify($encodedValue)"});
+    window.$webStorageType.setItem("$key", "$value");
     """);
   }
 
