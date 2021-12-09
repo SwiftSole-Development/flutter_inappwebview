@@ -177,18 +177,10 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 }
                 break
             case "setOptions":
-                if let iabController = webView?.inAppBrowserDelegate as? InAppBrowserWebViewController {
-                    let inAppBrowserOptions = InAppBrowserOptions()
-                    let inAppBrowserOptionsMap = arguments!["options"] as! [String: Any]
-                    let _ = inAppBrowserOptions.parse(options: inAppBrowserOptionsMap)
-                    iabController.setOptions(newOptions: inAppBrowserOptions, newOptionsMap: inAppBrowserOptionsMap)
-                    result(true)
-                } else {
-                    let inAppWebViewOptions = InAppWebViewOptions()
-                    let inAppWebViewOptionsMap = arguments!["options"] as! [String: Any]
-                    let _ = inAppWebViewOptions.parse(options: inAppWebViewOptionsMap)
-                    webView?.setOptions(newOptions: inAppWebViewOptions, newOptionsMap: inAppWebViewOptionsMap, result: result)
-                }
+                let inAppWebViewOptions = InAppWebViewOptions()
+                let inAppWebViewOptionsMap = arguments!["options"] as! [String: Any]
+                let _ = inAppWebViewOptions.parse(options: inAppWebViewOptionsMap)
+                webView?.setOptions(newOptions: inAppWebViewOptions, newOptionsMap: inAppWebViewOptionsMap, result: result)
                 break
             case "getOptions":
                 if let iabController = webView?.inAppBrowserDelegate as? InAppBrowserWebViewController {
