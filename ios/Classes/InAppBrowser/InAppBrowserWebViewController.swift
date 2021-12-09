@@ -426,11 +426,11 @@ public class InAppBrowserWebViewController: UIViewController, InAppBrowserDelega
         webView.goBackOrForward(steps: steps)
     }
 
-    public func setOptions(newOptions: InAppBrowserOptions, newOptionsMap: [String: Any]) {
+    public func setOptions(newOptions: InAppBrowserOptions, newOptionsMap: [String: Any], result: @escaping FlutterResult) {
         
         let newInAppWebViewOptions = InAppWebViewOptions()
         let _ = newInAppWebViewOptions.parse(options: newOptionsMap)
-        self.webView.setOptions(newOptions: newInAppWebViewOptions, newOptionsMap: newOptionsMap)
+        self.webView.setOptions(newOptions: newInAppWebViewOptions, newOptionsMap: newOptionsMap, result:result)
         
         if newOptionsMap["hidden"] != nil, browserOptions?.hidden != newOptions.hidden {
             if newOptions.hidden {
