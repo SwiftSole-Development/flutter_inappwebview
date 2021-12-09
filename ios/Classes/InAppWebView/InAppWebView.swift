@@ -191,7 +191,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         })
     }
     
-        public func setCookie(name: String, value: String, domain: String, path: String) -> Void {
+    public func setCookie(name: String, value: String, domain: String, path: String, result: @escaping FlutterResult) -> Void {
                 if #available(iOS 11.0, *) {
         let cookie = HTTPCookie(properties: [
           .domain: domain,
@@ -202,9 +202,32 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
           .expires: NSDate(timeIntervalSinceNow: 31556926)
           ])! 
  configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
-
+    result(true)
         }
                  
+    }
+
+    public func deleteAllCookies(domain: String, result: @escaping FlutterResult) -> Void {
+        if #available(iOS 11.0, *) {
+            configuration.websiteDataStore.httpCookieStore!.getAllCookies { (cookies) in
+                for cookie in cookies {
+                    var originURL = ""
+                    if cookie.properties![.originURL] is String {
+                        originURL = cookie.properties![.originURL] as! String
+                    }
+                    else if cookie.properties![.originURL] is URL{
+                        originURL = (cookie.properties![.originURL] as! URL).absoluteString
+                    }
+                    if (!originURL.isEmpty && originURL != url) {
+                        continue
+                    }
+                    if (cookie.domain == domain || cookie.domain == ".\(domain)" || ".\(cookie.domain)" == domain) {
+                        MyCookieManager.httpCookieStore!.delete(cookie, completionHandler: nil)
+                    }
+                }
+                result(true)
+            } 
+        }          
     }
 
     public func getCookies(url: String, result: @escaping FlutterResult) -> Void {

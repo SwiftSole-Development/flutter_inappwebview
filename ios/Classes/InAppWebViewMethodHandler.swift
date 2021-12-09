@@ -74,9 +74,14 @@ public class InAppWebViewMethodHandler: FlutterMethodCallDelegate {
                 let cookiePath = (arguments!["path"] as? String)!
 
                 webView!.setCookie(
-                    name:cookieName,value:cookieValue, domain:cookieDomain, path: cookiePath
+                    name:cookieName,value:cookieValue, domain:cookieDomain, path: cookiePath, result: result
                 )
-                result(true)
+                break
+            case "deleteAllCookies":
+                let cookieDomain = (arguments!["domain"] as? String)!
+                webView!.deleteAllCookies(
+                    domain:cookieDomain, result: result
+                )
                 break
             case "loadFile":
                 let assetFilePath = arguments!["assetFilePath"] as! String

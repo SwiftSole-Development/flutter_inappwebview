@@ -949,6 +949,13 @@ class InAppWebViewController {
     return await _channel.invokeMethod('setCookie', args);
   }
 
+  Future<bool> deleteAllCookies(String domain) async {
+    Map<String, dynamic> args = {
+      "domain": domain,
+    };
+    return await _channel.invokeMethod('deleteAllCookies', args);
+  }
+
   ///Gets the content html of the page. It first tries to get the content through javascript.
   ///If this doesn't work, it tries to get the content reading the file:
   ///- checking if it is an asset (`file:///`) or
