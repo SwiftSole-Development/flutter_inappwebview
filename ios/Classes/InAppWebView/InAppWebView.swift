@@ -209,24 +209,8 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
 
     public func deleteAllCookies(domain: String, result: @escaping FlutterResult) -> Void {
         if #available(iOS 11.0, *) {
-            configuration.websiteDataStore.httpCookieStore.getAllCookies { (cookies) in
-                for cookie in cookies {
-                    var originURL = ""
-                    if cookie.properties![.originURL] is String {
-                        originURL = cookie.properties![.originURL] as! String
-                    }
-                    else if cookie.properties![.originURL] is URL{
-                        originURL = (cookie.properties![.originURL] as! URL).absoluteString
-                    }
-                    if (!originURL.isEmpty && originURL != url) {
-                        continue
-                    }
-                    if (cookie.domain == domain || cookie.domain == ".\(domain)" || ".\(cookie.domain)" == domain) {
-                        MyCookieManager.httpCookieStore!.delete(cookie, completionHandler: nil)
-                    }
-                }
-                result(true)
-            } 
+            configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
+            result(true)
         }          
     }
 
