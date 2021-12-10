@@ -90,5 +90,6 @@ public class HeadlessInAppWebView : FlutterMethodCallDelegate {
         channel?.setMethodCallHandler(nil)
         channel = nil
         HeadlessInAppWebViewManager.webViews.removeValue(forKey: id)
+        flutterWebView = nil
     }
 }
