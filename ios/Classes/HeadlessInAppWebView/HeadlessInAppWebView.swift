@@ -86,6 +86,10 @@ public class HeadlessInAppWebView : FlutterMethodCallDelegate {
         return nil
     }
     
+    deinit {
+        dispose()
+    }
+
     public func dispose() {
         channel?.setMethodCallHandler(nil)
         channel = nil
