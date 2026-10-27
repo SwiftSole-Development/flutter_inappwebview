@@ -428,6 +428,15 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                     UIScrollView.ContentInsetAdjustmentBehavior.init(rawValue: options.contentInsetAdjustmentBehavior)!
             }
             
+            // Tells WebKit the bottom of the page sits under app UI (e.g. a
+            // floating toolbar), so fixed and sticky elements stay clear of it
+            // while content still scrolls behind it. Needs the iOS 26 SDK.
+#if compiler(>=6.2)
+            if #available(iOS 26.0, *), options.obscuredBottomInset > 0 {
+                obscuredContentInsets = UIEdgeInsets(top: 0, left: 0, bottom: CGFloat(options.obscuredBottomInset), right: 0)
+            }
+#endif
+            
             allowsBackForwardNavigationGestures = options.allowsBackForwardNavigationGestures
             if #available(iOS 9.0, *) {
                 allowsLinkPreview = options.allowsLinkPreview

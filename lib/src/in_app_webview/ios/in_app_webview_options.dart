@@ -240,6 +240,12 @@ class IOSInAppWebViewOptions
   String? proxyUsername;
   String? proxyPassword;
 
+  ///How much of the web view's bottom edge is covered by app UI, such as a floating toolbar. WebKit keeps fixed
+  ///and sticky elements clear of it while content still scrolls behind it.
+  ///
+  ///**NOTE**: available on iOS 26.0+, and only when built with the iOS 26 SDK.
+  double obscuredBottomInset;
+
   IOSInAppWebViewOptions(
       {this.disallowOverScroll = false,
       this.enableViewportScale = false,
@@ -278,7 +284,8 @@ class IOSInAppWebViewOptions
       this.proxyHost,
       this.proxyPort = 0,
       this.proxyUsername,
-      this.proxyPassword}) {
+      this.proxyPassword,
+      this.obscuredBottomInset = 0}) {
     assert(
         allowingReadAccessTo == null || allowingReadAccessTo!.isScheme("file"));
   }
@@ -332,6 +339,7 @@ class IOSInAppWebViewOptions
       "proxyPort": proxyPort,
       "proxyUsername": proxyUsername,
       "proxyPassword": proxyPassword,
+      "obscuredBottomInset": obscuredBottomInset,
     };
   }
 
@@ -400,6 +408,7 @@ class IOSInAppWebViewOptions
     options.proxyPort = map["proxyPort"] ?? 0;
     options.proxyUsername = map["proxyUsername"];
     options.proxyPassword = map["proxyPassword"];
+    options.obscuredBottomInset = map["obscuredBottomInset"] ?? 0;
     return options;
   }
 

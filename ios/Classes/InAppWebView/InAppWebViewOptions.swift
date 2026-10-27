@@ -75,6 +75,7 @@ public class InAppWebViewOptions: Options<InAppWebView> {
     var proxyPort = 0
     var proxyUsername: String? = nil
     var proxyPassword: String? = nil
+    var obscuredBottomInset = 0.0
     
     override init(){
         super.init()
