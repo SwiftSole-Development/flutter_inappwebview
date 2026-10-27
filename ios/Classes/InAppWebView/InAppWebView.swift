@@ -8,6 +8,7 @@
 import Flutter
 import Foundation
 import WebKit
+import Network
 
 public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, UIGestureRecognizerDelegate, PullToRefreshDelegate {
 
@@ -210,9 +211,16 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
 
     public func deleteAllCookies(domain: String, result: @escaping FlutterResult) -> Void {
         if #available(iOS 11.0, *) {
-            configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
-            result(true)
-        }          
+            let cookieStore = configuration.websiteDataStore.httpCookieStore
+            cookieStore.getAllCookies { cookies in
+                let group = DispatchGroup()
+                for cookie in cookies where domain.isEmpty || cookie.domain.contains(domain) {
+                    group.enter()
+                    cookieStore.delete(cookie) { group.leave() }
+                }
+                group.notify(queue: .main) { result(true) }
+            }
+        }
     }
 
     public func getCookies(url: String, result: @escaping FlutterResult) -> Void {
@@ -562,7 +570,9 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 configuration.preferences.setValue(options.allowFileAccessFromFileURLs, forKey: "allowFileAccessFromFileURLs")
             }
             
-            if #available(iOS 9.0, *) {
+            if #available(iOS 17.0, *), let identifier = options.dataStoreIdentifier, let uuid = UUID(uuidString: identifier) {
+                configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: uuid)
+            } else if #available(iOS 9.0, *) {
                 if options.incognito {
                     configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
                 } else if options.cacheEnabled {
@@ -608,9 +618,50 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             if #available(iOS 14.0, *) {
                 configuration.limitsNavigationsToAppBoundDomains = options.limitsNavigationsToAppBoundDomains
             }
+            
+            if #available(iOS 17.0, *), options.dataStoreIdentifier != nil {
+                // Only per-identifier stores take a proxy, so it never leaks into the shared default store.
+                configuration.websiteDataStore.proxyConfigurations = InAppWebView.proxyConfigurations(options: options)
+            }
         }
         
         return configuration
+    }
+    
+    @available(iOS 17.0, *)
+    static func proxyConfigurations(options: InAppWebViewOptions) -> [ProxyConfiguration] {
+        guard let host = options.proxyHost, !host.isEmpty, options.proxyPort > 0,
+              let port = NWEndpoint.Port(rawValue: UInt16(options.proxyPort)) else {
+            return []
+        }
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: port)
+        var proxy = options.proxyType == "socks5"
+            ? ProxyConfiguration(socksv5Proxy: endpoint)
+            : ProxyConfiguration(httpCONNECTProxy: endpoint, tlsOptions: nil)
+        if let username = options.proxyUsername, !username.isEmpty {
+            proxy.applyCredential(username: username, password: options.proxyPassword ?? "")
+        }
+        return [proxy]
+    }
+    
+    public static func removeDataStore(identifier: String, result: @escaping FlutterResult) {
+        guard #available(iOS 17.0, *), let uuid = UUID(uuidString: identifier) else {
+            result(false)
+            return
+        }
+        WKWebsiteDataStore.remove(forIdentifier: uuid) { error in
+            result(error == nil)
+        }
+    }
+    
+    public static func fetchDataStoreIdentifiers(result: @escaping FlutterResult) {
+        guard #available(iOS 17.0, *) else {
+            result([String]())
+            return
+        }
+        WKWebsiteDataStore.fetchAllDataStoreIdentifiers { identifiers in
+            result(identifiers.map { $0.uuidString })
+        }
     }
     
     @objc func onCreateContextMenu() {

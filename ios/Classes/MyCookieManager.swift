@@ -83,6 +83,13 @@ class MyCookieManager: NSObject, FlutterPlugin {
             case "deleteAllCookies":
                 MyCookieManager.deleteAllCookies(result: result)
                 break
+            case "removeDataStore":
+                let identifier = arguments!["identifier"] as! String
+                InAppWebView.removeDataStore(identifier: identifier, result: result)
+                break
+            case "fetchDataStoreIdentifiers":
+                InAppWebView.fetchDataStoreIdentifiers(result: result)
+                break
             default:
                 result(FlutterMethodNotImplemented)
                 break

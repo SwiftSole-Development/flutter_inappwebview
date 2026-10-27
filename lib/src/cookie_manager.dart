@@ -401,6 +401,21 @@ class CookieManager {
     await _channel.invokeMethod('deleteAllCookies', args);
   }
 
+  ///Deletes the persistent data store created for [IOSInAppWebViewOptions.dataStoreIdentifier], including its cookies.
+  ///No WebView using that identifier may be alive when this is called. Returns `false` below iOS 17.0.
+  Future<bool> removeDataStore(String identifier) async {
+    Map<String, dynamic> args = <String, dynamic>{"identifier": identifier};
+    return await _channel.invokeMethod('removeDataStore', args) ?? false;
+  }
+
+  ///Lists the identifiers of every persistent data store on the device. Empty below iOS 17.0.
+  Future<List<String>> fetchDataStoreIdentifiers() async {
+    Map<String, dynamic> args = <String, dynamic>{};
+    final List<dynamic>? identifiers =
+        await _channel.invokeMethod('fetchDataStoreIdentifiers', args);
+    return identifiers?.cast<String>() ?? [];
+  }
+
   String _getDomainName(Uri url) {
     String domain = url.host;
     return domain.startsWith("www.") ? domain.substring(4) : domain;

@@ -223,6 +223,23 @@ class IOSInAppWebViewOptions
   ///The default value is `false`.
   bool disableLongPressContextMenuOnLinks;
 
+  ///Identifier of a persistent `WKWebsiteDataStore` (a UUID string). WebViews with the same identifier share
+  ///cookies and storage, which survive app restarts until [CookieManager.removeDataStore] is called.
+  ///Takes precedence over [InAppWebViewOptions.incognito].
+  ///
+  ///**NOTE**: available on iOS 17.0+.
+  String? dataStoreIdentifier;
+
+  ///Proxy applied to the data store selected by [dataStoreIdentifier]. Either `http` (HTTP CONNECT) or `socks5`.
+  ///Ignored when [dataStoreIdentifier] is `null`.
+  ///
+  ///**NOTE**: available on iOS 17.0+.
+  String? proxyType;
+  String? proxyHost;
+  int proxyPort;
+  String? proxyUsername;
+  String? proxyPassword;
+
   IOSInAppWebViewOptions(
       {this.disallowOverScroll = false,
       this.enableViewportScale = false,
@@ -255,7 +272,13 @@ class IOSInAppWebViewOptions
       this.useOnNavigationResponse = false,
       this.applePayAPIEnabled = false,
       this.allowingReadAccessTo,
-      this.disableLongPressContextMenuOnLinks = false}) {
+      this.disableLongPressContextMenuOnLinks = false,
+      this.dataStoreIdentifier,
+      this.proxyType,
+      this.proxyHost,
+      this.proxyPort = 0,
+      this.proxyUsername,
+      this.proxyPassword}) {
     assert(
         allowingReadAccessTo == null || allowingReadAccessTo!.isScheme("file"));
   }
@@ -303,6 +326,12 @@ class IOSInAppWebViewOptions
       "applePayAPIEnabled": applePayAPIEnabled,
       "allowingReadAccessTo": allowingReadAccessTo.toString(),
       "disableLongPressContextMenuOnLinks": disableLongPressContextMenuOnLinks,
+      "dataStoreIdentifier": dataStoreIdentifier,
+      "proxyType": proxyType,
+      "proxyHost": proxyHost,
+      "proxyPort": proxyPort,
+      "proxyUsername": proxyUsername,
+      "proxyPassword": proxyPassword,
     };
   }
 
@@ -365,6 +394,12 @@ class IOSInAppWebViewOptions
         : null;
     options.disableLongPressContextMenuOnLinks =
         map["disableLongPressContextMenuOnLinks"];
+    options.dataStoreIdentifier = map["dataStoreIdentifier"];
+    options.proxyType = map["proxyType"];
+    options.proxyHost = map["proxyHost"];
+    options.proxyPort = map["proxyPort"] ?? 0;
+    options.proxyUsername = map["proxyUsername"];
+    options.proxyPassword = map["proxyPassword"];
     return options;
   }
 

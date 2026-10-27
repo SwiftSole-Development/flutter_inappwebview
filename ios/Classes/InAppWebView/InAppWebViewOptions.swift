@@ -69,6 +69,12 @@ public class InAppWebViewOptions: Options<InAppWebView> {
     var applePayAPIEnabled = false
     var allowingReadAccessTo: String? = nil
     var disableLongPressContextMenuOnLinks = false
+    var dataStoreIdentifier: String? = nil
+    var proxyType: String? = nil
+    var proxyHost: String? = nil
+    var proxyPort = 0
+    var proxyUsername: String? = nil
+    var proxyPassword: String? = nil
     
     override init(){
         super.init()
